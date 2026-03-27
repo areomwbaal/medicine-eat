@@ -768,6 +768,7 @@
             let totalTaken = 0;
             let completedMeds = 0;
             let pendingMeds = [];
+            let overMeds = [];
 
             medicines.forEach(m => {
                 const dailyDose = getDailyDose(m.description);
@@ -775,7 +776,10 @@
                 if (dailyDose) {
                     totalRequired += dailyDose;
                     totalTaken += Math.min(todayCount, dailyDose);
-                    if (todayCount >= dailyDose) {
+                    if (todayCount > dailyDose) {
+                        overMeds.push({ name: m.name, over: todayCount - dailyDose });
+                        completedMeds++;
+                    } else if (todayCount === dailyDose) {
                         completedMeds++;
                     } else {
                         pendingMeds.push({ name: m.name, remaining: dailyDose - todayCount });
@@ -787,18 +791,37 @@
             let todaySummaryHtml = '';
             if (medicines.length > 0 && totalRequired > 0) {
                 const allComplete = pendingMeds.length === 0;
-                if (allComplete) {
+                const hasOver = overMeds.length > 0;
+
+                let contentHtml = '';
+
+                if (pendingMeds.length > 0) {
+                    const pendingLines = pendingMeds.map(p => `<div>• ${p.name} 还需 ${p.remaining} 次</div>`).join('');
+                    contentHtml += `<div class="today-summary-title">今日还需服用：</div><div class="today-summary-content">${pendingLines}</div>`;
+                }
+
+                if (hasOver) {
+                    const overLines = overMeds.map(p => `<div>• ${p.name} 超量 ${p.over} 次</div>`).join('');
+                    contentHtml += `<div class="today-summary-title" style="color: #e67700; margin-top: 8px;">⚠ 今日超量服用：</div><div class="today-summary-content" style="color: #e67700;">${overLines}</div>`;
+                }
+
+                if (allComplete && !hasOver) {
                     todaySummaryHtml = `
                         <div class="today-summary" style="background: linear-gradient(135deg, #d3f9d8 0%, #b2f2bb 100%);">
                             <div class="today-summary-title" style="color: #2f9e44;">✓ 今日服药已完成</div>
                         </div>
                     `;
+                } else if (allComplete && hasOver) {
+                    todaySummaryHtml = `
+                        <div class="today-summary" style="background: linear-gradient(135deg, #fff3bf 0%, #ffe066 100%);">
+                            <div class="today-summary-title" style="color: #2f9e44;">✓ 今日服药已完成</div>
+                            ${contentHtml}
+                        </div>
+                    `;
                 } else {
-                    const pendingLines = pendingMeds.map(p => `<div>• ${p.name} 还需 ${p.remaining} 次</div>`).join('');
                     todaySummaryHtml = `
                         <div class="today-summary">
-                            <div class="today-summary-title">今日还需服用：</div>
-                            <div class="today-summary-content">${pendingLines}</div>
+                            ${contentHtml}
                         </div>
                     `;
                 }
