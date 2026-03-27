@@ -791,15 +791,14 @@
                     todaySummaryHtml = `
                         <div class="today-summary" style="background: linear-gradient(135deg, #d3f9d8 0%, #b2f2bb 100%);">
                             <div class="today-summary-title" style="color: #2f9e44;">✓ 今日服药已完成</div>
-                            <div class="today-summary-content" style="color: #37b24d;">所有 ${medicines.length} 种药品均已按时服用</div>
                         </div>
                     `;
                 } else {
-                    const pendingText = pendingMeds.map(p => `${p.name}(还需${p.remaining}次)`).join('、');
+                    const pendingLines = pendingMeds.map(p => `<div>• ${p.name} 还需 ${p.remaining} 次</div>`).join('');
                     todaySummaryHtml = `
                         <div class="today-summary">
-                            <div class="today-summary-title">今日服药进度：${totalTaken}/${totalRequired} 次</div>
-                            <div class="today-summary-content">待服用：${pendingText}</div>
+                            <div class="today-summary-title">今日还需服用：</div>
+                            <div class="today-summary-content">${pendingLines}</div>
                         </div>
                     `;
                 }
