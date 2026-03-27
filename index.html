@@ -194,6 +194,67 @@
             color: #51cf66;
             margin-top: 4px;
         }
+        .today-progress {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin: 8px 0;
+            padding: 8px 12px;
+            background: #f0f7ff;
+            border-radius: 8px;
+            font-size: 13px;
+        }
+        .progress-bar {
+            flex: 1;
+            height: 8px;
+            background: #e0e0e0;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(135deg, #51cf66 0%, #37b24d 100%);
+            border-radius: 4px;
+            transition: width 0.3s;
+        }
+        .progress-fill.complete {
+            background: linear-gradient(135deg, #51cf66 0%, #2f9e44 100%);
+        }
+        .progress-fill.over {
+            background: linear-gradient(135deg, #ffd43b 0%, #fab005 100%);
+        }
+        .progress-text {
+            font-weight: 600;
+            color: #333;
+            min-width: 50px;
+            text-align: right;
+        }
+        .progress-status {
+            font-size: 12px;
+            color: #666;
+        }
+        .progress-status.complete {
+            color: #2f9e44;
+        }
+        .progress-status.over {
+            color: #e67700;
+        }
+        .today-summary {
+            background: linear-gradient(135deg, #d0ebff 0%, #a5d8ff 100%);
+            padding: 16px;
+            border-radius: 12px;
+            margin-bottom: 16px;
+        }
+        .today-summary-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #1864ab;
+            margin-bottom: 8px;
+        }
+        .today-summary-content {
+            font-size: 13px;
+            color: #1971c2;
+        }
         .section-title {
             font-size: 16px;
             font-weight: 600;
@@ -680,6 +741,19 @@
             btn.onclick = () => addMedicine();
         }
 
+        // 从描述中解析每日服药次数
+        function getDailyDose(description) {
+            if (!description) return null;
+            const match = description.match(/每日(\d+)次/);
+            return match ? parseInt(match[1]) : null;
+        }
+
+        // 获取今日某药品的服药次数
+        function getTodayCount(medicineId) {
+            const today = new Date().toDateString();
+            return records.filter(r => r.medicineId === medicineId && new Date(r.time).toDateString() === today).length;
+        }
+
         // 渲染药品列表
         function renderMedicines() {
             const list = document.getElementById('medicine-list');
@@ -688,6 +762,48 @@
             const today = new Date().toDateString();
             const todayRecords = records.filter(r => new Date(r.time).toDateString() === today);
             const days = getConsecutiveDays();
+
+            // 计算今日总体进度
+            let totalRequired = 0;
+            let totalTaken = 0;
+            let completedMeds = 0;
+            let pendingMeds = [];
+
+            medicines.forEach(m => {
+                const dailyDose = getDailyDose(m.description);
+                const todayCount = getTodayCount(m.id);
+                if (dailyDose) {
+                    totalRequired += dailyDose;
+                    totalTaken += Math.min(todayCount, dailyDose);
+                    if (todayCount >= dailyDose) {
+                        completedMeds++;
+                    } else {
+                        pendingMeds.push({ name: m.name, remaining: dailyDose - todayCount });
+                    }
+                }
+            });
+
+            // 今日服药概况
+            let todaySummaryHtml = '';
+            if (medicines.length > 0 && totalRequired > 0) {
+                const allComplete = pendingMeds.length === 0;
+                if (allComplete) {
+                    todaySummaryHtml = `
+                        <div class="today-summary" style="background: linear-gradient(135deg, #d3f9d8 0%, #b2f2bb 100%);">
+                            <div class="today-summary-title" style="color: #2f9e44;">✓ 今日服药已完成</div>
+                            <div class="today-summary-content" style="color: #37b24d;">所有 ${medicines.length} 种药品均已按时服用</div>
+                        </div>
+                    `;
+                } else {
+                    const pendingText = pendingMeds.map(p => `${p.name}(还需${p.remaining}次)`).join('、');
+                    todaySummaryHtml = `
+                        <div class="today-summary">
+                            <div class="today-summary-title">今日服药进度：${totalTaken}/${totalRequired} 次</div>
+                            <div class="today-summary-content">待服用：${pendingText}</div>
+                        </div>
+                    `;
+                }
+            }
 
             summary.innerHTML = `
                 <div class="summary-item">
@@ -705,10 +821,13 @@
                 return;
             }
 
-            list.innerHTML = medicines.map((m, i) => {
+            list.innerHTML = todaySummaryHtml + medicines.map((m, i) => {
                 const lastTaken = getLastTaken(m.id);
                 const photos = m.photos || [];
                 const category = m.category || '其他';
+                const dailyDose = getDailyDose(m.description);
+                const todayCount = getTodayCount(m.id);
+
                 const photosHtml = photos.length > 0 ? `
                     <div class="medicine-photos">
                         ${photos.map((p, pi) => `
@@ -716,6 +835,28 @@
                         `).join('')}
                     </div>
                 ` : '';
+
+                // 今日进度条
+                let progressHtml = '';
+                if (dailyDose) {
+                    const percent = Math.min((todayCount / dailyDose) * 100, 100);
+                    const isComplete = todayCount >= dailyDose;
+                    const isOver = todayCount > dailyDose;
+                    const fillClass = isOver ? 'over' : (isComplete ? 'complete' : '');
+                    const statusClass = isOver ? 'over' : (isComplete ? 'complete' : '');
+                    const statusText = isOver ? '已超量' : (isComplete ? '已完成' : `还需${dailyDose - todayCount}次`);
+
+                    progressHtml = `
+                        <div class="today-progress">
+                            <span class="progress-status ${statusClass}">今日</span>
+                            <div class="progress-bar">
+                                <div class="progress-fill ${fillClass}" style="width: ${percent}%"></div>
+                            </div>
+                            <span class="progress-text">${todayCount}/${dailyDose}</span>
+                            <span class="progress-status ${statusClass}">${statusText}</span>
+                        </div>
+                    `;
+                }
 
                 return `
                     <div class="medicine-item">
@@ -725,6 +866,7 @@
                         </div>
                         ${photosHtml}
                         <div class="medicine-desc">${m.description || '暂无说明'}</div>
+                        ${progressHtml}
                         ${lastTaken ? `<div class="last-taken">✓ 上次服用: ${lastTaken}</div>` : ''}
                         <div class="btn-group">
                             <button class="btn btn-success btn-small" onclick="takeMedicine(${m.id})">✓ 吃药打卡</button>
